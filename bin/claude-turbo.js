@@ -98,6 +98,23 @@ const PATTERNS = [
     match: /(?:3[.)]\s*)?(?:Always allow|Don'?t ask again|Allow always)/i,
     send: '3',
   },
+  // ── Approach/Plan Confirmations ──
+  // When Claude asks "does this look right?" or "should I proceed with this plan?"
+  {
+    name: 'plan-confirmation',
+    match: /(?:sound(?:s)?\s+(?:right|good|ok)|(?:does|do)\s+(?:this|that)\s+(?:look|sound)\s+(?:right|good|ok)|(?:should|shall)\s+I\s+(?:proceed|start|go ahead|begin|continue)|(?:ready\s+to\s+(?:proceed|start|begin))|(?:want\s+(?:me\s+)?to\s+(?:adjust|change|modify)\s+(?:anything|priorities|the plan)))\s*\?/i,
+    send: 'yes, proceed. Act as a super genius and do what you think is best.\r',
+  },
+  {
+    name: 'approach-check',
+    match: /(?:what\s+do\s+you\s+think|any\s+(?:feedback|thoughts|concerns|objections)|(?:before\s+I\s+(?:start|begin|proceed|dive in)))\s*\?/i,
+    send: 'looks good, go for it\r',
+  },
+  {
+    name: 'which-option',
+    match: /(?:which\s+(?:option|approach|method|strategy)\s+(?:do you|would you|should))|(?:option\s+\d\s+or\s+option\s+\d)/i,
+    send: 'whichever you think is best, you decide\r',
+  },
 ];
 
 // Patterns to NEVER auto-accept (safety net)
