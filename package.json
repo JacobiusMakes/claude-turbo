@@ -1,0 +1,16 @@
+{
+  "name": "claude-turbo",
+  "version": "0.1.0",
+  "description": "Terminal wrapper for Claude Code that auto-accepts permission prompts. Stop babysitting, start building.",
+  "type": "module",
+  "bin": {
+    "claude-turbo": "bin/claude-turbo.js"
+  },
+  "scripts": {
+    "start": "node bin/claude-turbo.js"
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "license": "MIT"
+}
