@@ -45,6 +45,22 @@ const claudeArgs = dashDash >= 0 ? args.slice(dashDash + 1) : [];
 
 const PATTERNS = [
   {
+    // Claude Code's main permission prompt:
+    // "Do you want to proceed?"
+    // ❯ 1. Yes
+    //   2. Yes, and always allow...
+    //   3. No
+    name: 'cc-proceed',
+    match: /Do you want to proceed\?/,
+    send: '1',
+  },
+  {
+    // Numbered options with "Yes" as first choice
+    name: 'numbered-yes',
+    match: /1[.)]\s*Yes/,
+    send: '1',
+  },
+  {
     // "Do you want to proceed? (y/n)" or "Proceed? (Y/n)"
     name: 'proceed-yn',
     match: /(?:proceed|continue)\?\s*\(?[yYnN]/,
@@ -57,9 +73,9 @@ const PATTERNS = [
     send: 'y',
   },
   {
-    // Numbered option: "1. Allow  2. Deny" — send 1
+    // Numbered option: "1. Allow  2. Deny" or "1. Yes  2. No" — send 1
     name: 'allow-deny-numbered',
-    match: /1[.)]\s*(?:Allow|Yes|Approve|Accept).*2[.)]\s*(?:Deny|No|Reject|Cancel)/s,
+    match: /1[.)]\s*(?:Allow|Yes|Approve|Accept).*(?:2|3)[.)]\s*(?:Deny|No|Reject|Cancel)/s,
     send: '1',
   },
   {
