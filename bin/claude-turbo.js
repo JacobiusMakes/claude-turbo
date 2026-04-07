@@ -32,7 +32,7 @@ const logEnabled = flags.has('--log') || process.env.CLAUDE_TURBO_LOG === '1';
 const delayMs = parseInt(
   args.find((a, i) => args[i - 1] === '--delay') ||
   process.env.CLAUDE_TURBO_DELAY ||
-  '300'
+  '100'
 );
 
 // Everything after -- goes to claude
@@ -45,20 +45,29 @@ const claudeArgs = dashDash >= 0 ? args.slice(dashDash + 1) : [];
 
 const PATTERNS = [
   {
+    // Claude Code's workspace trust prompt:
+    // "Is this a project you created or one you trust?"
+    // > 1. Yes, I trust this folder
+    //   2. No, exit
+    name: 'trust-folder',
+    match: /(?:trust this folder|I trust this folder)/i,
+    send: '\x1b[A\x1b[A\r',
+  },
+  {
     // Claude Code's main permission prompt:
     // "Do you want to proceed?"
-    // ❯ 1. Yes
-    //   2. Yes, and always allow...
-    //   3. No
+    // Cursor may be on "No" for security-flagged commands
+    // Send UP UP UP to guarantee we're on option 1, then Enter
     name: 'cc-proceed',
     match: /Do you want to proceed\?/,
-    send: '1',
+    send: '\x1b[A\x1b[A\x1b[A\r',
   },
   {
     // Numbered options with "Yes" as first choice
+    // Same — navigate to top then confirm
     name: 'numbered-yes',
     match: /1[.)]\s*Yes/,
-    send: '1',
+    send: '\x1b[A\x1b[A\x1b[A\r',
   },
   {
     // "Do you want to proceed? (y/n)" or "Proceed? (Y/n)"
@@ -196,16 +205,21 @@ let lastAutoAcceptTime = 0;
 let autoAcceptCount = 0;
 let pendingTimeout = null;
 
+// Strip ANSI escape codes for clean pattern matching
+function stripAnsi(str) {
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
+}
+
 // ============================================================
 //  Output Handler — watch for permission prompts
 // ============================================================
 
 shell.onData((data) => {
-  // Pass through to terminal
+  // Pass through to terminal (with ANSI colors intact)
   process.stdout.write(data);
 
-  // Buffer for pattern matching
-  outputBuffer += data;
+  // Buffer STRIPPED text for pattern matching (no ANSI interference)
+  outputBuffer += stripAnsi(data);
   if (outputBuffer.length > BUFFER_SIZE) {
     outputBuffer = outputBuffer.slice(-BUFFER_SIZE);
   }
@@ -227,9 +241,6 @@ shell.onData((data) => {
   // Check for auto-accept patterns
   for (const pattern of PATTERNS) {
     if (pattern.match.test(outputBuffer)) {
-      // Clear the buffer so we don't re-match
-      const matchStr = outputBuffer.match(pattern.match)?.[0] || '';
-
       if (pendingTimeout) clearTimeout(pendingTimeout);
 
       pendingTimeout = setTimeout(() => {
@@ -239,16 +250,10 @@ shell.onData((data) => {
             `for: ${pattern.name}${c.reset}\n`
           );
         } else {
-          shell.write(pattern.send + '\r');
+          const toSend = pattern.send.endsWith('\r') ? pattern.send : pattern.send + '\r';
+          shell.write(toSend);
           autoAcceptCount++;
           lastAutoAcceptTime = Date.now();
-
-          if (logEnabled) {
-            process.stderr.write(
-              `${c.green}[turbo] #${autoAcceptCount} auto-accepted: ${pattern.name} → ` +
-              `"${pattern.send === '\r' ? 'Enter' : pattern.send}"${c.reset}\n`
-            );
-          }
         }
         outputBuffer = '';
         pendingTimeout = null;
@@ -266,12 +271,15 @@ shell.onData((data) => {
 process.stdin.setRawMode(true);
 process.stdin.resume();
 process.stdin.on('data', (data) => {
-  // Cancel pending auto-accept if user types something
-  if (pendingTimeout) {
+  // Ignore terminal escape sequences (mouse, focus, cursor queries) — not real user input
+  const isEscapeSequence = data.length > 1 && data[0] === 0x1b;
+
+  if (pendingTimeout && !isEscapeSequence) {
     clearTimeout(pendingTimeout);
     pendingTimeout = null;
     if (logEnabled) {
-      process.stderr.write(`${c.dim}[turbo] user input detected, cancelled pending auto-accept${c.reset}\n`);
+      const hex = Buffer.from(data).toString('hex');
+      process.stderr.write(`${c.dim}[turbo] user input detected (${hex}), cancelled pending auto-accept${c.reset}\n`);
     }
   }
   shell.write(data);
